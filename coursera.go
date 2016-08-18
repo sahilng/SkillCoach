@@ -91,5 +91,9 @@ func latestCourseraCourses(query string, max int) []Resource{
 	resources = resourcesToReturn
 	sort.Sort(resources)
 
+	if len(resources) < max {
+		max = len(resources)
+	} 
+
 	return resources[:max]
 }
