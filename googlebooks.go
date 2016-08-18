@@ -75,8 +75,21 @@ func latestGoogleBooks(query string, max int) []Resource{
 		if err != nil {
 			log.Fatal(err)
 		}
+		if dateCreated < 10000{
+			dateCreated = (dateCreated*10000)+101
+		}
 		res.DateCreated = dateCreated
 		resourcesToReturn = append(resourcesToReturn, res)
 	}
-	return resourcesToReturn
+
+	var resourcesToReturnNoDuplicates []Resource
+	found := make(map[string]bool)
+	for _, val := range resourcesToReturn {
+		if !found[val.Name] {
+			found[val.Name] = true
+			resourcesToReturnNoDuplicates = append(resourcesToReturnNoDuplicates, val)
+		}
+	}
+
+	return resourcesToReturnNoDuplicates
 }

@@ -3,9 +3,14 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"log"
+	"strconv"
 
 	"github.com/robfig/cron"
+	"gopkg.in/redis.v4"
 )
+
+var stored = []string{"marketing", "public speaking", "leadership", "sales", "teamwork"}
 
 type Resource struct {
 	Id int
@@ -33,6 +38,8 @@ func (slice Resources) Swap(i, j int) {
 
 func handler(w http.ResponseWriter, r *http.Request) {
     //handle requests
+    //requests of form /search?query=QUERY&maxResults=MAXRESULTS
+    fmt.Println("GET params were:", r.URL.Query())
 }
 
 func main() {
@@ -52,15 +59,16 @@ func updateDatabase(){
 	//update Database
 		//pull data 
 		//add resources to redis as hash [resource:x]
-		//add resource ids with days old score to redis sorted set [skill]
+		//add resource ids with date created score to redis sorted set [skill]
 
+	//Pull Data
 	/* Marketing */
 	resourcesToAdd["marketing"] = append(resourcesToAdd["marketing"], latestGoogleBooks("marketing", 10)...)
 	resourcesToAdd["marketing"] = append(resourcesToAdd["marketing"], latestCourseraCourses("marketing", 10)...)
 
 	/* Public Speaking */
-	resourcesToAdd["publicSpeaking"] = append(resourcesToAdd["publicSpeaking"], latestGoogleBooks("public speaking", 10)...)
-	resourcesToAdd["publicSpeaking"] = append(resourcesToAdd["publicSpeaking"], latestCourseraCourses("public+speaking", 10)...)
+	resourcesToAdd["public speaking"] = append(resourcesToAdd["public speaking"], latestGoogleBooks("public speaking", 10)...)
+	resourcesToAdd["public speaking"] = append(resourcesToAdd["public speaking"], latestCourseraCourses("public+speaking", 10)...)
 
 	/* Leadership */
 	resourcesToAdd["leadership"] = append(resourcesToAdd["leadership"], latestGoogleBooks("leadership", 10)...)
@@ -74,8 +82,41 @@ func updateDatabase(){
 	resourcesToAdd["teamwork"] = append(resourcesToAdd["teamwork"], latestGoogleBooks("teamwork", 10)...)
 	resourcesToAdd["teamwork"] = append(resourcesToAdd["teamwork"], latestCourseraCourses("teamwork", 10)...)
 
+	//Update Database
+	client := redis.NewClient(&redis.Options{
+	    Addr:     "localhost:6379",
+	    Password: "", // no password set
+	    DB:       0,  // use default DB
+	})
 
-	//fmt.Println(resourcesToAdd)
+	numResources64, err := client.DbSize().Result()
+	numResources := int(numResources64)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	i := 0
+	for skill, resources := range resourcesToAdd {
+		for index := range resources {
+			resource := &resourcesToAdd[skill][index]
+			resource.Id = numResources + i
+			resourceIdString := strconv.Itoa(resource.Id) 
+			hashkey := "resource:" + resourceIdString
+			hashFields := map[string]string{
+						    "id": resourceIdString,
+						    "name":  resource.Name,
+						    "link": resource.Link,
+						    "source": resource.Source,
+						}
+			client.HMSet(hashkey, hashFields)
+
+			var z redis.Z
+			z.Score = float64(resource.DateCreated)
+			z.Member = resourceIdString
+			client.ZAdd(skill, z)
+			i++
+		}
+	}
 
 	fmt.Println("Database has been updated")
 }
