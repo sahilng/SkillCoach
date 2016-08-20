@@ -75,7 +75,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 
 func handler(w http.ResponseWriter, r *http.Request) {
 
-	fmt.Fprintf(w, "Welcome")
+	fmt.Fprintf(w, "<html><head><title>SkillCoach</title></head><body>to use, enter /search?query=[YOUR_QUERY]&maxResults=[MAX_RESULTS] and replace the bracketed parts with the appropriate query / maximum number of results.<br><br>in this version, only the following five queries are supported: marketing, public+speaking, leadership, teamwork, sales<br>NOTE: The '+' sign instead of spaces is required<br><br><br>by Sahil Gupta</body></html>")
 
 }
 
