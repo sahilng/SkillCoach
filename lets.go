@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"log"
 	"strconv"
+	"strings"
+	"encoding/json"
 
 	"github.com/robfig/cron"
 	"gopkg.in/redis.v4"
@@ -36,10 +38,45 @@ func (slice Resources) Swap(i, j int) {
 
 
 
-func handler(w http.ResponseWriter, r *http.Request) {
+func searchHandler(w http.ResponseWriter, r *http.Request) {
     //handle requests
     //requests of form /search?query=QUERY&maxResults=MAXRESULTS
-    fmt.Println("GET params were:", r.URL.Query())
+    query := strings.ToLower(r.URL.Query().Get("query"))
+    maxResultsString := r.URL.Query().Get("maxResults")
+    maxResults, _ := strconv.Atoi(maxResultsString)
+    fmt.Println(query)
+    fmt.Println(maxResults)
+    if contains(stored, query) {
+    	client := redis.NewClient(&redis.Options{
+		    Addr:     "localhost:6379",
+		    Password: "", // no password set
+		    DB:       0,  // use default DB
+		})
+    	stringSliceCmd := client.ZRange(query, int64(maxResults * -1), -1)
+    	resourcesStringSlice := stringSliceCmd.Val()
+		var resourcesToReturn []Resource
+		for _, val := range resourcesStringSlice {
+			resourceHash := client.HGetAll("resource:" + val).Val()
+			var resource Resource
+			resource.Id, _ = strconv.Atoi(resourceHash["id"])
+			resource.Name = resourceHash["name"]
+			resource.Link = resourceHash["link"]
+			resource.Source = resourceHash["source"]
+			resourcesToReturn = append(resourcesToReturn, resource)
+			fmt.Println(resource)
+		}
+		json, err := json.Marshal(resourcesToReturn)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Fprintf(w, string(json))
+    }
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+
+	fmt.Fprintf(w, "Welcome")
+
 }
 
 func main() {
@@ -50,6 +87,8 @@ func main() {
 	 c.Start()
 
      http.HandleFunc("/", handler)
+     http.HandleFunc("/search", searchHandler)
+
      http.ListenAndServe(":8080", nil)
     
 }
@@ -118,5 +157,18 @@ func updateDatabase(){
 		}
 	}
 
+	client.Close()
+
 	fmt.Println("Database has been updated")
+}
+
+//helper
+func contains(slice []string, item string) bool {
+    set := make(map[string]struct{}, len(slice))
+    for _, s := range slice {
+        set[s] = struct{}{}
+    }
+
+    _, ok := set[item] 
+    return ok
 }
