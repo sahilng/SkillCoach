@@ -6,6 +6,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"bytes"
 	"encoding/json"
 
 	"github.com/robfig/cron"
@@ -18,6 +19,9 @@ type Resource struct {
 	Id int
 	Name string
 	Link string
+	Creators []string
+	Description string
+	Image string
 	Source string
 	DateCreated int
 }
@@ -61,16 +65,21 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 			resource.Id, _ = strconv.Atoi(resourceHash["id"])
 			resource.Name = resourceHash["name"]
 			resource.Link = resourceHash["link"]
+			resource.Creators = strings.Split(resourceHash["creators"], "+")
+			resource.Description = resourceHash["description"]
+			resource.Image = resourceHash["image"]
 			resource.Source = resourceHash["source"]
+			resource.DateCreated, _ = strconv.Atoi(resourceHash["dateCreated"])
 			resourcesToReturn = append(resourcesToReturn, resource)
 			fmt.Println(resource)
 		}
-		json, err := json.Marshal(resourcesToReturn)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Fprintf(w, string(json))
-    }
+
+		buf := new(bytes.Buffer)
+		enc := json.NewEncoder(buf)
+		enc.SetEscapeHTML(false)
+		_ = enc.Encode(resourcesToReturn)
+		fmt.Fprintf(w, string(buf.String()))
+    } 
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -140,12 +149,18 @@ func updateDatabase(){
 			resource := &resourcesToAdd[skill][index]
 			resource.Id = numResources + i
 			resourceIdString := strconv.Itoa(resource.Id) 
+			resourceCreatorsString := strings.Join(resource.Creators, "+")
+			resourceDateCreatedString := strconv.Itoa(resource.DateCreated)
 			hashkey := "resource:" + resourceIdString
 			hashFields := map[string]string{
 						    "id": resourceIdString,
 						    "name":  resource.Name,
 						    "link": resource.Link,
+						    "creators": resourceCreatorsString,
+						    "description": resource.Description,
+						    "image": resource.Image,
 						    "source": resource.Source,
+						    "dateCreated": resourceDateCreatedString,
 						}
 			client.HMSet(hashkey, hashFields)
 

@@ -12,14 +12,17 @@ import (
 
 type GoogleBook struct{
 	Title string
-	SelfLink string
+	Link string
+	Authors []string
+	Description string
+	Image string
 	PublishedDate string
 }
 
 func latestGoogleBooks(query string, max int) []Resource{
 	//Google Books
 	//GET https://www.googleapis.com/books/v1/volumes?q=quilting&key=yourAPIKey
-	resp, err := http.Get("https://www.googleapis.com/books/v1/volumes?q=" + query + "&filter=free-ebooks&langRestrict=en&maxResults=" + strconv.Itoa(max) + "&orderBy=newest&key=" + getKey("Google Books"))
+	resp, err := http.Get("https://www.googleapis.com/books/v1/volumes?q=" + query + "&langRestrict=en&maxResults=" + strconv.Itoa(max) + "&orderBy=newest&key=" + getKey("Google Books"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -45,8 +48,8 @@ func latestGoogleBooks(query string, max int) []Resource{
 				book := val.(map[string]interface{})
 				googleBookToAdd := GoogleBook{}
 				for kk,vv := range book{
-					if kk == "selfLink" {
-						googleBookToAdd.SelfLink = vv.(string)
+					if kk == "id" {
+						googleBookToAdd.Link = "https://books.google.com/books?id=" + vv.(string)
 					}
 					if kk == "volumeInfo" {
 						bookInfo := vv.(map[string]interface{})
@@ -54,8 +57,28 @@ func latestGoogleBooks(query string, max int) []Resource{
 							if bookInfoKey == "title" {
 								googleBookToAdd.Title = bookInfoValue.(string)
 							}
+							if bookInfoKey == "authors" {
+								authors := bookInfoValue.([]interface{})
+								var authorsSlice []string
+								for _,author := range authors {
+									authorString := author.(string)
+									authorsSlice = append(authorsSlice, authorString)
+								}
+								googleBookToAdd.Authors = authorsSlice
+							}
 							if bookInfoKey == "publishedDate" {
 								googleBookToAdd.PublishedDate = bookInfoValue.(string)
+							}
+							if bookInfoKey == "description" {
+								googleBookToAdd.Description = bookInfoValue.(string)
+							}
+							if bookInfoKey == "imageLinks" {
+								imageLinks := bookInfoValue.(map[string]interface{})
+								for imageType, imageLink := range imageLinks {
+									if imageType == "thumbnail" {
+										googleBookToAdd.Image = imageLink.(string)
+									}
+								}
 							}
 						}
 					}
@@ -69,7 +92,10 @@ func latestGoogleBooks(query string, max int) []Resource{
 	for _,googleBook := range googleBooks{
 		var res Resource
 		res.Name = googleBook.Title
-		res.Link = googleBook.SelfLink
+		res.Link = googleBook.Link
+		res.Creators = googleBook.Authors
+		res.Description = googleBook.Description
+		res.Image = googleBook.Image
 		res.Source = "Google Books"
 		dateCreated, err := strconv.Atoi(strings.Replace(googleBook.PublishedDate, "-", "", -1))
 		if err != nil {

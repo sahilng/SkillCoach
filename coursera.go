@@ -14,6 +14,9 @@ import (
 
 type CourseraCourse struct{
 	Name string
+	Instructors []string
+	Description string
+	Image string
 	Slug string
 	UnixTimeStampMillis float64
 }
@@ -22,7 +25,7 @@ type CourseraCourse struct{
 func latestCourseraCourses(query string, max int) []Resource{
 	//Coursera
 	//GET "https://api.coursera.org/api/courses.v1?q=search&query=machine+learning&fields=startDate
-	resp, err := http.Get("https://api.coursera.org/api/courses.v1?q=search&query=" + query + "&fields=startDate")
+	resp, err := http.Get("https://api.coursera.org/api/courses.v1?q=search&query=" + query + "&includes=instructorIds&fields=startDate,instructorIds,description,photoUrl")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -54,8 +57,32 @@ func latestCourseraCourses(query string, max int) []Resource{
 					if kk == "name" {
 						courseToAdd.Name = vv.(string)
 					}
+					if kk == "description" {
+						courseToAdd.Description = vv.(string)
+					}
+					if kk == "photoUrl" {
+						courseToAdd.Image = vv.(string)
+					}
 					if kk == "startDate" {
 						courseToAdd.UnixTimeStampMillis = vv.(float64)
+					}
+					if kk == "instructorIds" {
+						idsToName := make(map[string]string)
+						linkedMap := m["linked"].(map[string]interface{})
+						linked := linkedMap["instructors.v1"].([]interface{})
+						for _, instructor := range linked {
+							instructorMap := instructor.(map[string]interface{})
+							instructorFullName := instructorMap["fullName"].(string)
+							instructorIdString := instructorMap["id"].(string)
+							idsToName[instructorIdString] = instructorFullName
+						}
+						instructorIds := vv.([]interface{})
+						var instructorsSlice []string
+						for _, instructorId := range instructorIds {
+							instructorIdString := instructorId.(string)
+							instructorsSlice = append(instructorsSlice, idsToName[instructorIdString])
+						}
+						courseToAdd.Instructors = instructorsSlice
 					}
 				}
 				courseraCourses = append(courseraCourses, courseToAdd)
@@ -67,7 +94,10 @@ func latestCourseraCourses(query string, max int) []Resource{
 	for _,courseraCourse := range courseraCourses{
 		var res Resource
 		res.Name = courseraCourse.Name
+		res.Creators = courseraCourse.Instructors
 		res.Link = "https://www.coursera.org/learn/" + courseraCourse.Slug
+		res.Description = courseraCourse.Description
+		res.Image = courseraCourse.Image
 		res.Source = "Coursera"
 		
 		unixSeconds := int(courseraCourse.UnixTimeStampMillis/1000)
